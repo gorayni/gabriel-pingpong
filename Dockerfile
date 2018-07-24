@@ -2,7 +2,7 @@ FROM cmusatyalab/gabriel
 MAINTAINER Satyalab, satya-group@lists.andrew.cmu.edu
 
 WORKDIR /
-RUN git clone https://github.com/cmusatyalab/gabriel-pingpong.git
+RUN git clone https://github.com/gorayni/gabriel-pingpong.git
 
 ENV FASTER_RCNN_ROOT /py-faster-rcnn
 
@@ -11,41 +11,53 @@ ENV FASTER_RCNN_ROOT /py-faster-rcnn
 # install py-faster-rcnn dependency
 RUN apt-get update && apt-get install -y \
     build-essential \
-    git \
+    curl \
+    git \    
     libopencv-dev \
-    python-opencv \
-    python-dev \
-    libprotobuf-dev \
-    libleveldb-dev \
-    libsnappy-dev \
-    libhdf5-serial-dev \
     libatlas-base-dev \
+    libhdf5-serial-dev \
+    libldap2-dev \
+    libleveldb-dev \
+    libprotobuf-dev \
+    libsasl2-dev \
+    libsnappy-dev \
+    libsnmp-dev \
+    libssl-dev \
+    nano \
     protobuf-compiler \
-    wget
-
-RUN apt-get install -y --no-install-recommends libboost-all-dev
-RUN apt-get install -y apt-utils libgflags-dev libgoogle-glog-dev liblmdb-dev
+    python-dev \
+    python-matplotlib \
+    python-opencv \
+    wget && \
+    apt-get install -y --no-install-recommends libboost-all-dev && \
+    apt-get install -y apt-utils libgflags-dev libgoogle-glog-dev liblmdb-dev && \
+    apt-get clean && \
+    apt-get autoremove && \
+    rm -rf /var/lib/apt/lists/*
 
 # fix bug for hdf5 for Caffe. See https://github.com/NVIDIA/DIGITS/issues/156
 RUN cd /usr/lib/x86_64-linux-gnu && ln -s libhdf5_serial.so libhdf5.so && \
     ln -s libhdf5_serial_hl.so libhdf5_hl.so
 
-RUN wget -O /tmp/get-pip.py https://bootstrap.pypa.io/get-pip.py && \
-    python /tmp/get-pip.py && \
-    pip install -U pip setuptools
+# Install pip
+RUN curl -O https://bootstrap.pypa.io/get-pip.py && \
+    python get-pip.py && \
+    rm get-pip.py
+RUN pip install -U pip setuptools
 
 # download py-faster-rcnn
 WORKDIR /
-RUN git clone --recursive  https://github.com/rbgirshick/py-faster-rcnn.git
+RUN git clone --recursive https://github.com/rbgirshick/py-faster-rcnn.git
 
 # install python dependencies
 WORKDIR /py-faster-rcnn/caffe-fast-rcnn
 RUN pip install easydict && \
-    pip install cython && \
-    pip install -r python/requirements.txt
+    pip install cython
+RUN cat python/requirements.txt | xargs -n1 pip2 install --user
+
 # must be this version of numpy, or it will crash: https://github.com/rbgirshick/py-faster-rcnn/issues/480; no need for this anymore?
-RUN pip install -Iv numpy==1.11.1
-RUN pip install -U python-dateutil
+RUN pip install --user -Iv numpy==1.11.1
+RUN pip install --user -U python-dateutil
 #for serving feedback videos
 RUN pip install Twisted
 
@@ -59,6 +71,7 @@ RUN cd caffe-fast-rcnn && \
     sed -i 's%INCLUDE_DIRS := $(PYTHON_INCLUDE) /usr/local/include%INCLUDE_DIRS := $(PYTHON_INCLUDE) /usr/local/include /usr/include/hdf5/serial/%' Makefile.config && \
     sed -i 's%LIBRARY_DIRS := $(PYTHON_LIB) /usr/local/lib /usr/lib%LIBRARY_DIRS := $(PYTHON_LIB) /usr/local/lib /usr/lib /usr/lib/x86_64-linux-gnu/hdf5/serial/%' Makefile.config && \
     sed -i 's%# WITH_PYTHON_LAYER := 1%WITH_PYTHON_LAYER := 1%' Makefile.config && \
+    sed -i 's%# CPU_ONLY := 1%CPU_ONLY := 1%' Makefile.config && \
     cat Makefile.config && \
     make -j$(nproc) && \
     make -j$(nproc) pycaffe
